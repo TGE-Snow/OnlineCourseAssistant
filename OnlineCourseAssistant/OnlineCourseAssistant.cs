@@ -24,6 +24,8 @@ namespace OnlineCourseAssistant
             InitializeComponent();
         }
 
+        private int dowmNum = 10;
+
         private string path = @"D:\课程下载";
 
         private bool showffmpeg = false;
@@ -231,55 +233,57 @@ namespace OnlineCourseAssistant
         private void BeforDownload(List<string> tsdata, string nowpath, int datagridindex)
         {
             List<Task> listThread = new List<Task>();
+            int i = 0;
 
-            for (int i = 0; i < tsdata.Count(); i++)
+            while (i < tsdata.Count)
             {
-                listThread.Add(DownloadFile(tsdata[i], i, nowpath));
+                while (listThread.Count() < dowmNum)
+                {
+                    if (i < tsdata.Count)
+                    {
+                        dataGridView1.Rows[datagridindex].Cells[1].Value = i + "/" + tsdata.Count();
+                        int noindex = i++;
+                        listThread.Add(Task.Factory.StartNew(() => { DownloadFile(tsdata[noindex], nowpath + @"\" + noindex + ".ts"); }));
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                Task.WaitAll(listThread.ToArray());
+                listThread = new List<Task>();
             }
-
-            int overcount = 0;
-
-            while (overcount != tsdata.Count())
-            {
-                overcount = listThread.Where(x => x.Status == TaskStatus.RanToCompletion).Count();
-
-                dataGridView1.Rows[datagridindex].Cells[1].Value = overcount + "/" + tsdata.Count();
-            }
-
             Task.WaitAll(listThread.ToArray());
         }
 
-        private Task DownloadFile(string URL, int name, string nowpath)
+        private void DownloadFile(string URL, string pathname)
         {
-            return Task.Factory.StartNew(async () =>
+            try
             {
-                try
-                {
-                    HttpWebRequest Myrq = (System.Net.HttpWebRequest)System.Net.HttpWebRequest.Create(URL);
-                    HttpWebResponse myrp = (System.Net.HttpWebResponse)Myrq.GetResponse();
-                    Stream st = myrp.GetResponseStream();
+                HttpWebRequest Myrq = (System.Net.HttpWebRequest)System.Net.HttpWebRequest.Create(URL);
+                HttpWebResponse myrp = (System.Net.HttpWebResponse)Myrq.GetResponse();
+                Stream st = myrp.GetResponseStream();
 
-                    Stream so = new System.IO.FileStream(nowpath + @"\" + name + ".ts", System.IO.FileMode.Create);
-                    byte[] by = new byte[1024];
-                    int osize = st.Read(by, 0, (int)by.Length);
-                    while (osize > 0)
-                    {
-                        so.Write(by, 0, osize);
-                        osize = st.Read(by, 0, (int)by.Length);
-                    }
-                    so.Close();
-                    st.Close();
-                    myrp.Close();
-                    Myrq.Abort();
-                }
-                catch (System.Exception e)
+                Stream so = new System.IO.FileStream(pathname, System.IO.FileMode.Create);
+                byte[] by = new byte[1024];
+                int osize = st.Read(by, 0, (int)by.Length);
+                while (osize > 0)
                 {
-                    await DownloadFile(URL, name, nowpath);
+                    so.Write(by, 0, osize);
+                    osize = st.Read(by, 0, (int)by.Length);
                 }
-                finally
-                {
-                }
-            });
+                so.Close();
+                st.Close();
+                myrp.Close();
+                Myrq.Abort();
+            }
+            catch (System.Exception e)
+            {
+                DownloadFile(URL, pathname);
+            }
+            finally
+            {
+            }
         }
 
         /// <summary>
@@ -431,6 +435,18 @@ namespace OnlineCourseAssistant
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
         {
             showffmpeg = checkBox1.Checked;
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            if (int.TryParse(textBox1.Text, out int dnum))
+            {
+                dowmNum = dnum;
+            }
+            else
+            {
+                textBox1.Text = dowmNum.ToString();
+            }
         }
     }
 }
