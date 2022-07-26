@@ -1,25 +1,19 @@
 ﻿using Newtonsoft.Json.Linq;
-using OnlineCourseAssistant.Properties;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Diagnostics;
 using Titanium.Web.Proxy;
-using System.Collections.Concurrent;
 using Titanium.Web.Proxy.EventArguments;
 using Titanium.Web.Proxy.Models;
-using Titanium.Web.Proxy.Http;
-using System.Web;
+using Microsoft.VisualBasic;
 
 namespace OnlineCourseAssistant
 {
@@ -29,12 +23,6 @@ namespace OnlineCourseAssistant
         {
             InitializeComponent();
         }
-
-        private string header_url = "";
-
-        private string overlayKey = "";
-
-        private string overlayIv = "";
 
         private string path = @"D:\课程下载";
 
@@ -56,61 +44,68 @@ namespace OnlineCourseAssistant
             }
         }
 
-        public Task StartDownM3u8(string btn_down_m3u8url, string name, string body)
+        public Task StartDownM3u8(string body)
         {
             Task.Run(() =>
             {
-                MessageBoxButtons messButton = MessageBoxButtons.OKCancel;
-                DialogResult dr = MessageBox.Show("监听到课程 '" + name + "',是否下载", "监听提示", messButton, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1, MessageBoxOptions.DefaultDesktopOnly);
+                string strname = Interaction.InputBox("监听到课程", "命名课程", "在这里输入", -1, -1);
 
-                if (dr == DialogResult.OK)//如果点击“确定”按钮
+                if (strname.Length > 0)//如果点击“确定”按钮
                 {
                     int datagridindex = dataGridView1.Rows.Count - 1;
                     dataGridView1.Rows.Add();
                     try
                     {
+                        JObject bodyJobject = JObject.Parse(body);
+
+                        JToken bodyResult = bodyJobject.GetValue("result");
+
+                        JToken recVideoInfo = bodyResult.Value<JToken>("rec_video_info");
+
+                        string dk = recVideoInfo.Value<string>("dk");
+
                         char[] illegalcharacter = new char[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|', ' ' };
 
                         foreach (var item in illegalcharacter)
                         {
-                            name = name.Replace(item, '_');
+                            strname = strname.Replace(item, '_');
                         }
 
-                        dataGridView1.Rows[datagridindex].Cells[0].Value = name;
+                        dataGridView1.Rows[datagridindex].Cells[0].Value = strname;
 
-                        string nowpath = path + "/" + name;
+                        string nowpath = path + "/" + strname;
 
-                        dataGridView1.Rows[datagridindex].Cells[1].Value = $"创建/格式化'{name}'文件夹";
+                        dataGridView1.Rows[datagridindex].Cells[1].Value = $"创建/格式化'{strname}'文件夹";
                         if (Directory.Exists(nowpath))
                         {
-                            DelectDir(nowpath);
+                            DelectDir(nowpath, false);
                         }
                         else
                         {
                             Directory.CreateDirectory(nowpath);
                         };
 
-                        dataGridView1.Rows[datagridindex].Cells[1].Value = $"'{name}文件夹创建/格式化完成";
+                        dataGridView1.Rows[datagridindex].Cells[1].Value = $"'{strname}文件夹创建/格式化完成";
 
-                        GetHeaderUrl(btn_down_m3u8url);
+                        JToken tsInfo = recVideoInfo.Value<JArray>("infos").OrderByDescending(v => v.Value<long>("height")).ToArray()[0];
+                        string urlHead = GetHeaderUrl(tsInfo.Value<string>("url"));
 
                         dataGridView1.Rows[datagridindex].Cells[1].Value = $"获取M3U8的URL(选择最高画质)";
 
-                        string m3u8_ts_url = GetM3u8TsUrl(body);
-
-                        string tsStr = HttpPostNew(m3u8_ts_url);
+                        string m3u8_ts_url = tsInfo.Value<string>("url");
+                        List<string> tsStr = HttpPostNew(m3u8_ts_url);
                         dataGridView1.Rows[datagridindex].Cells[1].Value = $"生成key.key文件";
-                        tsStr = GetM3u8Key(tsStr, nowpath);
+                        tsStr = GetM3u8Key(dk, nowpath, tsStr);
                         dataGridView1.Rows[datagridindex].Cells[1].Value = $"生成ts文件";
-                        tsStr = GetM3u8Ts(tsStr, nowpath, datagridindex);
+                        tsStr = GetM3u8Ts(tsStr, nowpath, datagridindex, urlHead);
                         dataGridView1.Rows[datagridindex].Cells[1].Value = $"生成index.m3u8文件";
                         GetM3u8Index(tsStr, nowpath);
                         dataGridView1.Rows[datagridindex].Cells[1].Value = $"合并生成mp4文件";
 
-                        if (ConvertVideo(path, name))
+                        if (ConvertVideo(path, strname))
                         {
                             dataGridView1.Rows[datagridindex].Cells[1].Value = $"视频合并成功";
-                            DelectDir(nowpath);
+                            DelectDir(nowpath, true);
                             //Directory.Delete(nowpath);
                         }
                         else
@@ -120,7 +115,7 @@ namespace OnlineCourseAssistant
                     }
                     catch (Exception ex)
                     {
-                        dataGridView1.Rows[datagridindex].Cells[1].Value = $"错误提示:{ex}";
+                        dataGridView1.Rows[datagridindex].Cells[1].Value = $"错误提示:{ex.Message}";
                     }
                 }
             });
@@ -128,7 +123,7 @@ namespace OnlineCourseAssistant
             return null;
         }
 
-        public void DelectDir(string srcPath)
+        public void DelectDir(string srcPath, bool droot)
         {
             try
             {
@@ -145,6 +140,12 @@ namespace OnlineCourseAssistant
                     {
                         File.Delete(i.FullName);      //删除指定文件
                     }
+                }
+
+                if (droot)
+                {
+                    DirectoryInfo subdir = new DirectoryInfo(srcPath);
+                    subdir.Delete(true);
                 }
             }
             catch (Exception e)
@@ -195,36 +196,36 @@ namespace OnlineCourseAssistant
             }
         }
 
-        private void GetM3u8Index(string tsStr, string nowpath)
+        private void GetM3u8Index(List<string> tsStr, string nowpath)
         {
+            string m3u8str = string.Join("\n", tsStr);
             using (StreamWriter sw = new StreamWriter(nowpath + @"\index.m3u8"))
             {
-                sw.WriteLine(tsStr);
+                sw.WriteLine(m3u8str);
             }
         }
 
-        private string GetM3u8Ts(string tsStr, string nowpath, int datagridindex)
+        private List<string> GetM3u8Ts(List<string> tsStr, string nowpath, int datagridindex, string urlHead)
         {
-            string[] ts_list = tsStr.Split('\n');
-            List<string> tsdata = new List<string>();
+            List<string> tslist = new List<string>();
 
             int ts_Count = 0;
 
-            for (int i = 0; i < ts_list.Length - 1; i++)
+            for (int i = 0; i < tsStr.Count - 1; i++)
             {
-                if (ts_list[i].Contains("ts"))
+                if (tsStr[i].Contains(".ts"))
                 {
-                    tsdata.Add(header_url + '/' + ts_list[i]);
-                    ts_list[i] = ts_Count + ".ts";
+                    tslist.Add(urlHead + '/' + tsStr[i]);
+                    tsStr[i] = ts_Count + ".ts";
                     ts_Count++;
                 }
             }
 
-            tasksList.Add(Task.Factory.StartNew(() => { BeforDownload(tsdata, nowpath, datagridindex); }));
+            tasksList.Add(Task.Factory.StartNew(() => { BeforDownload(tslist, nowpath, datagridindex); }));
 
             Task.WaitAll(tasksList.ToArray());
 
-            return string.Join("\n", ts_list);
+            return tsStr;
         }
 
         private void BeforDownload(List<string> tsdata, string nowpath, int datagridindex)
@@ -285,100 +286,49 @@ namespace OnlineCourseAssistant
         /// 获取m3u8 key
         /// </summary>
         /// <param name="ts_list"></param>
-        private string GetM3u8Key(string ts_list, string nowpath)
+        private List<string> GetM3u8Key(string dk, string nowpath, List<string> tsStr)
         {
-            string regexStr = "(?<=URI=\").*(?=\")";
+            var Bse64Bys = Convert.FromBase64String(dk);
+            byte[] byte_key = new byte[16];
 
-            string key_url = Regex.Matches(ts_list, regexStr)[0].ToString();
-
-            StringBuilder sb = new StringBuilder(ts_list);
-            sb.Replace(key_url, "key.key");
-
-            var byte_key = HttpPostKey(key_url);
-
-            Byte[] keylist = new Byte[16];
-            Byte[] ivlist = new Byte[16];
-
-            for (int h = 0; h < 16; h++)
+            int i = 0;
+            foreach (var item in Bse64Bys)
             {
-                int aa = 2 * h;
-
-                string f = overlayKey.Substring(aa, 2);
-                string g = overlayIv.Substring(2 * h, 2);
-
-                keylist[h] = (byte)Convert.ToInt32(f, 16);
-                ivlist[h] = (byte)Convert.ToInt32(g, 16);
+                byte_key[i++] = Convert.ToByte(item);
             }
-
-            RijndaelManaged rijndaelCipher = new RijndaelManaged();
-            rijndaelCipher.Key = keylist;
-            rijndaelCipher.IV = ivlist;
-            rijndaelCipher.Mode = CipherMode.CBC;
-            rijndaelCipher.Padding = PaddingMode.Zeros;
-
-            ICryptoTransform transform = rijndaelCipher.CreateDecryptor();
-            byte[] plainText = transform.TransformFinalBlock(byte_key, 0, byte_key.Length);
-
             string path1 = nowpath + "\\key.key";
             using (FileStream fs = new FileStream(path1, FileMode.Create, FileAccess.Write))
             {
-                foreach (var item in plainText)
+                foreach (var item in byte_key)
                 {
                     fs.WriteByte(item);
                 }
             }
+            int keyIndex = tsStr.FindIndex(v => v.Contains("#EXT-X-KEY"));
 
-            return sb.ToString();
+            string regexStr = "(?<=URI=\").*(?=\")";
+
+            string key_url = Regex.Matches(tsStr[keyIndex], regexStr)[0].ToString();
+
+            tsStr[keyIndex] = tsStr[keyIndex].Replace(key_url, "key.key");
+
+            return tsStr;
         }
 
         /// <summary>
         /// 获取头部URL
         /// </summary>
         /// <param name="btn_down_m3u8url"></param>
-        private void GetHeaderUrl(string btn_down_m3u8url)
+        private string GetHeaderUrl(string btn_down_m3u8url)
         {
             List<string> header_list = btn_down_m3u8url.Split('/').ToList();
 
             header_list.RemoveAt(header_list.Count() - 1);
 
-            header_url = string.Join("/", header_list);
+            return string.Join("/", header_list);
         }
 
-        /// <summary>
-        /// 获取M3U8 ts 的URL
-        /// </summary>
-        /// <param name="m3u8urllist"></param>
-        /// <returns></returns>
-        private string GetM3u8TsUrl(string m3u8urllist)
-        {
-            List<string> list = m3u8urllist.Split('\n').ToList();
-
-            list.Reverse();
-
-            foreach (string item in list)
-            {
-                if (!string.IsNullOrWhiteSpace(item))
-                {
-                    GetTokenStr(item);
-                    return header_url + '/' + item;
-                }
-            }
-            return null;
-        }
-
-        private void GetTokenStr(string token)
-        {
-            string regexStr = "(?<=~).*(?=~)";
-
-            string str = Regex.Matches(token, regexStr)[0].ToString();
-
-            var base64Str = Base64Decode(str);
-            JObject base64Object = JObject.Parse(base64Str);
-            overlayKey = base64Object["overlayKey"].ToString();
-            overlayIv = base64Object["overlayIv"].ToString();
-        }
-
-        private string HttpPostNew(string url)
+        private List<string> HttpPostNew(string url)
         {
             HttpWebRequest request = WebRequest.Create(url) as HttpWebRequest;
             request.Method = "GET";
@@ -392,48 +342,7 @@ namespace OnlineCourseAssistant
             myStreamReader.Close();
             myResponseStream.Close();
 
-            return retString;
-        }
-
-        private byte[] HttpPostKey(string url)
-        {
-            HttpWebRequest request = WebRequest.Create(url) as HttpWebRequest;
-            request.Method = "GET";
-            request.ContentType = "application/json";
-
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-
-            Stream myResponseStream = response.GetResponseStream();
-
-            byte[] btArray = new byte[16];
-            myResponseStream.Read(btArray, 0, btArray.Length);
-
-            myResponseStream.Close();
-
-            return btArray;
-        }
-
-        /// <summary>
-        /// Base64解密
-        /// </summary>
-        /// <param name="encodeType">解密采用的编码方式，注意和加密时采用的方式一致</param>
-        /// <param name="result">待解密的密文</param>
-        /// <returns>解密后的字符串</returns>
-        public static string Base64Decode(string result)
-        {
-            Encoding encodeType = Encoding.UTF8;
-            string decode = string.Empty;
-            result = HttpUtility.UrlDecode(result);
-            var bytes = Convert.FromBase64String(result);
-            try
-            {
-                decode = encodeType.GetString(bytes);
-            }
-            catch
-            {
-                decode = result;
-            }
-            return decode;
+            return retString.Split('\n').ToList();
         }
 
         private void OnlineCourseAssistant_Load(object sender, EventArgs e)
@@ -474,15 +383,9 @@ namespace OnlineCourseAssistant
             proxyServer.SetAsSystemHttpsProxy(explicitEndPoint);
         }
 
-        private string ClassName = "";
-
-        // Modify response
         public async Task OnResponse(object sender, SessionEventArgs e)
         {
-            // read response headers
-            var responseHeaders = e.HttpClient.Response.Headers;
-            //if (!e.ProxySession.Request.Host.Equals("medeczane.sgk.gov.tr")) return;
-            if (e.HttpClient.Request.Method == "GET" && e.HttpClient.Request.Url.Contains("m3u8") && e.HttpClient.Request.Url.Contains("adp"))
+            if (e.HttpClient.Request.Method == "GET" && e.HttpClient.Request.Url.Contains("ke.qq.com/cgi-proxy/rec_video/describe_rec_video"))
             {
                 if (e.HttpClient.Response.StatusCode == 200)
                 {
@@ -491,29 +394,12 @@ namespace OnlineCourseAssistant
                         byte[] bodyBytes = await e.GetResponseBody();
                         e.SetResponseBody(bodyBytes);
                         string body = await e.GetResponseBodyAsString();
-
                         e.SetResponseBodyString(body);
 
                         await Task.Run(() =>
                         {
-                            StartDownM3u8(e.HttpClient.Request.Url, ClassName, body);
+                            StartDownM3u8(body);
                         });
-                    }
-                }
-            }
-
-            if (e.HttpClient.Request.Method == "POST" && e.HttpClient.Request.Url.Contains("asyn.huke88.com/video/video-play"))
-            {
-                if (e.HttpClient.Response.StatusCode == 200)
-                {
-                    if (e.HttpClient.Response.ContentType != null)
-                    {
-                        byte[] bodyBytes = await e.GetResponseBody();
-                        e.SetResponseBody(bodyBytes);
-                        string body = await e.GetResponseBodyAsString();
-
-                        e.SetResponseBodyString(body);
-                        ClassName = JObject.Parse(body)["catalogHeaderTitle"].ToString();
                     }
                 }
             }

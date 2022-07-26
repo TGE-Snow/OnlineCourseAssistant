@@ -44,7 +44,7 @@ namespace OnlineCourseAssistant
             // 
             // btn_dowm
             // 
-            this.btn_dowm.Location = new System.Drawing.Point(14, 53);
+            this.btn_dowm.Location = new System.Drawing.Point(12, 12);
             this.btn_dowm.Name = "btn_dowm";
             this.btn_dowm.Size = new System.Drawing.Size(75, 23);
             this.btn_dowm.TabIndex = 1;
@@ -56,7 +56,7 @@ namespace OnlineCourseAssistant
             // 
             this.richTextBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.richTextBox1.Location = new System.Drawing.Point(14, 82);
+            this.richTextBox1.Location = new System.Drawing.Point(12, 41);
             this.richTextBox1.Name = "richTextBox1";
             this.richTextBox1.Size = new System.Drawing.Size(776, 140);
             this.richTextBox1.TabIndex = 2;
@@ -65,14 +65,14 @@ namespace OnlineCourseAssistant
             // label_dog
             // 
             this.label_dog.AutoSize = true;
-            this.label_dog.Location = new System.Drawing.Point(12, 9);
+            this.label_dog.Location = new System.Drawing.Point(198, 17);
             this.label_dog.Name = "label_dog";
             this.label_dog.Size = new System.Drawing.Size(0, 12);
             this.label_dog.TabIndex = 3;
             // 
             // btn_dog
             // 
-            this.btn_dog.Location = new System.Drawing.Point(14, 24);
+            this.btn_dog.Location = new System.Drawing.Point(108, 12);
             this.btn_dog.Name = "btn_dog";
             this.btn_dog.Size = new System.Drawing.Size(75, 23);
             this.btn_dog.TabIndex = 4;
@@ -102,10 +102,10 @@ namespace OnlineCourseAssistant
             this.dataGridView1.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
             this.Column1,
             this.Column2});
-            this.dataGridView1.Location = new System.Drawing.Point(14, 228);
+            this.dataGridView1.Location = new System.Drawing.Point(14, 187);
             this.dataGridView1.Name = "dataGridView1";
             this.dataGridView1.RowTemplate.Height = 23;
-            this.dataGridView1.Size = new System.Drawing.Size(774, 210);
+            this.dataGridView1.Size = new System.Drawing.Size(774, 221);
             this.dataGridView1.TabIndex = 7;
             // 
             // Column1
@@ -126,7 +126,7 @@ namespace OnlineCourseAssistant
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.ClientSize = new System.Drawing.Size(800, 420);
             this.Controls.Add(this.dataGridView1);
             this.Controls.Add(this.checkBox1);
             this.Controls.Add(this.btn_dog);
