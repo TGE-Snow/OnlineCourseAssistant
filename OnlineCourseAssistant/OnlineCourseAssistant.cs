@@ -22,11 +22,110 @@ namespace OnlineCourseAssistant
         public OnlineCourseAssistant()
         {
             InitializeComponent();
+            //List<FileInfo> a = getath(@"C:\Users\TGE\Desktop\课程\C#.NET P6黄埔架构班");
+            //foreach (FileInfo item in a)
+            //{
+            //    string ppath = item.DirectoryName.Replace(" ", "");
+            //    string pname = item.Name.Replace(" ", "");
+            //    Directory.CreateDirectory(ppath);
+            //    File.Copy(item.FullName, ppath + "//" + pname);
+            //}
         }
+
+        private void StartUp()
+        {
+            List<FileInfo> a = getath(@"C:\Users\TGE\Desktop\课程\C#.NETP6黄埔架构班");
+
+            int a1 = a.FindIndex(v => v.Name.Contains("课程正式启动"));
+
+            StreamReader sr = new StreamReader(a[a1].FullName);
+            string text = sr.ReadToEnd();
+            sr.Close();
+
+            List<string> reslist = text.Split('\n').ToList();
+
+            HttpWebRequest request = WebRequest.Create(reslist[0]) as HttpWebRequest;
+            request.Method = "GET";
+            request.ContentType = "application/json";
+
+            for (int i = 1; i < reslist.Count - 1; i++)
+            {
+                List<string> headstr = reslist[i].Split(':').ToList();
+
+                string key = headstr[0];
+                headstr.RemoveAt(0);
+                string value = string.Join(":", headstr);
+
+                switch (key)
+                {
+                    case "Host":
+                        request.Host = value;
+                        break;
+                    case "Connection":
+                        request.KeepAlive = true;
+                        break;
+                    case "User-Agent":
+                        request.UserAgent = value;
+                        break;
+                    case "Accept":
+                        request.Accept = value;
+                        break;
+                    case "Referer":
+                        request.Referer = value;
+                        break;
+                    default:
+                        request.Headers.Set(key, value);
+                        break;
+                }
+            }
+
+
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+
+            Stream myResponseStream = response.GetResponseStream();
+            StreamReader myStreamReader = new StreamReader(myResponseStream, Encoding.GetEncoding("utf-8"));
+            string retString = myStreamReader.ReadToEnd();
+            myStreamReader.Close();
+            myResponseStream.Close();
+
+            Task.Run(() =>
+           {
+               StartDownM3u8(retString, a[a1].Name.Replace(".txt", ""), a[a1].DirectoryName, reslist[reslist.Count - 1]);
+           });
+
+            var b = 12;
+        }
+
+        private List<FileInfo> getath(string fpath)
+        {
+            DirectoryInfo dir = new DirectoryInfo(fpath);
+            FileSystemInfo[] fileinfo = dir.GetFileSystemInfos();
+
+            List<FileInfo> filesys = dir.GetFiles().ToList();
+
+            foreach (FileSystemInfo item in fileinfo)
+            {
+                if (item is DirectoryInfo)            //判断是否文件夹
+                {
+                    List<FileInfo> npath = getath(item.FullName).ToList();
+                    filesys.AddRange(npath);
+                }
+                else
+                {
+                    if (filesys.FindIndex(v => v.FullName == item.FullName) == -1)
+                    {
+                        filesys.Add((FileInfo)item);
+                    }
+                }
+
+            }
+            return filesys;
+        }
+
 
         private int dowmNum = 10;
 
-        private string path = @"D:\课程下载";
+        //private string path = @"D:\课程下载";
 
         private bool showffmpeg = false;
 
@@ -34,23 +133,28 @@ namespace OnlineCourseAssistant
 
         private void btn_dowm_Click(object sender, EventArgs e)
         {
-            if (proxyServer == null)
-            {
-                btn_dowm.Text = "关闭监听";
-                LisentHttp();
-            }
-            else
-            {
-                btn_dowm.Text = "开启监听";
-                LesinHttpStop();
-            }
+            StartUp();
+            //if (proxyServer == null)
+            //{
+            //    btn_dowm.Text = "关闭监听";
+            //    LisentHttp();
+            //}
+            //else
+            //{
+            //    btn_dowm.Text = "开启监听";
+            //    LesinHttpStop();
+            //}
         }
 
-        public Task StartDownM3u8(string body)
+        public Task StartDownM3u8(string body, string name, string path, string dk)
         {
             Task.Run(() =>
             {
-                string strname = Interaction.InputBox("监听到课程", "命名课程", "在这里输入", -1, -1);
+                string strname = name;
+                if (string.IsNullOrEmpty(name))
+                {
+                    strname = Interaction.InputBox("监听到课程", "命名课程", "在这里输入", -1, -1);
+                }
 
                 if (strname.Length > 0)//如果点击“确定”按钮
                 {
@@ -64,7 +168,7 @@ namespace OnlineCourseAssistant
 
                         JToken recVideoInfo = bodyResult.Value<JToken>("rec_video_info");
 
-                        string dk = recVideoInfo.Value<string>("dk");
+                        //string dk = recVideoInfo.Value<string>("dk");
 
                         char[] illegalcharacter = new char[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|', ' ' };
 
@@ -158,11 +262,13 @@ namespace OnlineCourseAssistant
 
         public bool ConvertVideo(string path, string name)
         {
-            string mp4path = path + "\\" + name + ".mp4";
+          string mp4path = path + "\\" + name + ".mp4";
+
+            string m3uppath = path + "\\" + name + "\\index.m3u8";
 
             File.Delete(mp4path);
 
-            string strArg = @"-allowed_extensions ALL -i " + path + "/" + name + "/index.m3u8 -c copy " + path + "/" + name + ".mp4";
+            string strArg = @"-allowed_extensions ALL -i " + m3uppath + " -c copy " + path + "/" + name + ".mp4";
 
             string nowDir = Directory.GetCurrentDirectory();
             Directory.SetCurrentDirectory(nowDir);
@@ -223,9 +329,9 @@ namespace OnlineCourseAssistant
                 }
             }
 
-            tasksList.Add(Task.Factory.StartNew(() => { BeforDownload(tslist, nowpath, datagridindex); }));
+            //tasksList.Add(Task.Factory.StartNew(() => { BeforDownload(tslist, nowpath, datagridindex); }));
 
-            Task.WaitAll(tasksList.ToArray());
+            //Task.WaitAll(tasksList.ToArray());
 
             return tsStr;
         }
@@ -308,14 +414,33 @@ namespace OnlineCourseAssistant
                     fs.WriteByte(item);
                 }
             }
-            int keyIndex = tsStr.FindIndex(v => v.Contains("#EXT-X-KEY"));
+
+            int findex = tsStr.FindIndex(v => v.Contains("#EXT-X-KEY"));
 
             string regexStr = "(?<=URI=\").*(?=\")";
 
-            string key_url = Regex.Matches(tsStr[keyIndex], regexStr)[0].ToString();
+            string key_url = Regex.Matches(tsStr[findex], regexStr)[0].ToString();
+            tsStr[findex] = tsStr[findex].Replace(key_url, "key.key");
 
-            tsStr[keyIndex] = tsStr[keyIndex].Replace(key_url, "key.key");
+            findex += 1;
+            do
+            {
 
+                if (tsStr[findex].Contains("#EXT-X-KEY"))
+                {
+                    tsStr.RemoveAt(findex);
+                }
+                else
+                {
+                    findex++;
+                }
+            } while (findex < tsStr.Count);
+
+
+            for (int keyIndex = findex + 1; keyIndex < tsStr.Count; keyIndex++)
+            {
+
+            }
             return tsStr;
         }
 
@@ -352,7 +477,7 @@ namespace OnlineCourseAssistant
         private void OnlineCourseAssistant_Load(object sender, EventArgs e)
         {
             System.Windows.Forms.Control.CheckForIllegalCrossThreadCalls = false;
-            label_dog.Text = path;
+            //label_dog.Text = path;
             checkBox1.Checked = showffmpeg;
         }
 
@@ -400,10 +525,10 @@ namespace OnlineCourseAssistant
                         string body = await e.GetResponseBodyAsString();
                         e.SetResponseBodyString(body);
 
-                        await Task.Run(() =>
-                        {
-                            StartDownM3u8(body);
-                        });
+                        //await Task.Run(() =>
+                        //{
+                        //    StartDownM3u8(body);
+                        //});
                     }
                 }
             }
@@ -429,7 +554,7 @@ namespace OnlineCourseAssistant
         {
             folderBrowserDialog1.ShowDialog();
             label_dog.Text = folderBrowserDialog1.SelectedPath;
-            path = folderBrowserDialog1.SelectedPath;
+            //path = folderBrowserDialog1.SelectedPath;
         }
 
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
