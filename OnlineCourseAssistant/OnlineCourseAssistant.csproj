@@ -91,6 +91,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="classFunc\ClassFunc.cs" />
     <Compile Include="OnlineCourseAssistant.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -128,5 +129,6 @@
   <ItemGroup>
     <Content Include="favicon.ico" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

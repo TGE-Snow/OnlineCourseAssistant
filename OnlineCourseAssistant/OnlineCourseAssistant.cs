@@ -133,77 +133,44 @@ namespace OnlineCourseAssistant
 
         private void btn_dowm_Click(object sender, EventArgs e)
         {
-            StartUp();
-            //if (proxyServer == null)
-            //{
-            //    btn_dowm.Text = "关闭监听";
-            //    LisentHttp();
-            //}
-            //else
-            //{
-            //    btn_dowm.Text = "开启监听";
-            //    LesinHttpStop();
-            //}
+            //StartUp();
+            if (proxyServer == null)
+            {
+                btn_dowm.Text = "关闭监听";
+                LisentHttp();
+            }
+            else
+            {
+                btn_dowm.Text = "开启监听";
+                LesinHttpStop();
+            }
         }
 
-        public Task StartDownM3u8(string body, string name, string path, string dk)
+        public Task StartDownM3u8(string body, string type, string path, string dk)
         {
             Task.Run(() =>
             {
-                string strname = name;
-                if (string.IsNullOrEmpty(name))
-                {
-                    strname = Interaction.InputBox("监听到课程", "命名课程", "在这里输入", -1, -1);
-                }
 
-                if (strname.Length > 0)//如果点击“确定”按钮
+                int datagridindex = dataGridView1.Rows.Count - 1;
+                dataGridView1.Rows.Add();
+                try
                 {
-                    int datagridindex = dataGridView1.Rows.Count - 1;
-                    dataGridView1.Rows.Add();
-                    try
+                    ClassFuncGetM3u8 funcGetM3U8 = ClassFunc.GetM3u8Url(type, body);
+
+                    if (!string.IsNullOrEmpty(funcGetM3U8.url))
                     {
-                        JObject bodyJobject = JObject.Parse(body);
 
-                        JToken bodyResult = bodyJobject.GetValue("result");
-
-                        JToken recVideoInfo = bodyResult.Value<JToken>("rec_video_info");
-
-                        //string dk = recVideoInfo.Value<string>("dk");
-
-                        char[] illegalcharacter = new char[] { '\\', '/', ':', '*', '?', '"', '<', '>', '|', ' ' };
-
-                        foreach (var item in illegalcharacter)
+                        string strname = funcGetM3U8.name;
+                        if (string.IsNullOrEmpty(funcGetM3U8.name))
                         {
-                            strname = strname.Replace(item, '_');
+                            strname = Interaction.InputBox("监听到课程", "命名课程", "在这里输入", -1, -1);
                         }
-
-                        dataGridView1.Rows[datagridindex].Cells[0].Value = strname;
-
                         string nowpath = path + "/" + strname;
-
-                        dataGridView1.Rows[datagridindex].Cells[1].Value = $"创建/格式化'{strname}'文件夹";
-                        if (Directory.Exists(nowpath))
-                        {
-                            DelectDir(nowpath, false);
-                        }
-                        else
-                        {
-                            Directory.CreateDirectory(nowpath);
-                        };
-
-                        dataGridView1.Rows[datagridindex].Cells[1].Value = $"'{strname}文件夹创建/格式化完成";
-
-                        JToken tsInfo = recVideoInfo.Value<JArray>("infos").OrderByDescending(v => v.Value<long>("height")).ToArray()[0];
-                        string urlHead = GetHeaderUrl(tsInfo.Value<string>("url"));
-
-                        dataGridView1.Rows[datagridindex].Cells[1].Value = $"获取M3U8的URL(选择最高画质)";
-
-                        string m3u8_ts_url = tsInfo.Value<string>("url");
-                        List<string> tsStr = HttpPostNew(m3u8_ts_url);
+                        List<string> tsStr = HttpPostNew(funcGetM3U8.url);
                         dataGridView1.Rows[datagridindex].Cells[1].Value = $"生成key.key文件";
                         tsStr = GetM3u8Key(dk, nowpath, tsStr);
                         dataGridView1.Rows[datagridindex].Cells[1].Value = $"生成ts文件";
-                        tsStr = GetM3u8Ts(tsStr, nowpath, datagridindex, urlHead);
+                        tsStr = GetM3u8Ts(tsStr, nowpath, datagridindex, funcGetM3U8.tsHeadUrl);
                         dataGridView1.Rows[datagridindex].Cells[1].Value = $"生成index.m3u8文件";
                         GetM3u8Index(tsStr, nowpath);
                         dataGridView1.Rows[datagridindex].Cells[1].Value = $"合并生成mp4文件";
@@ -219,10 +186,12 @@ namespace OnlineCourseAssistant
                             dataGridView1.Rows[datagridindex].Cells[1].Value = $"视频合并失败";
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        dataGridView1.Rows[datagridindex].Cells[1].Value = $"错误提示:{ex.Message}";
-                    }
+
+
+                }
+                catch (Exception ex)
+                {
+                    dataGridView1.Rows[datagridindex].Cells[1].Value = $"错误提示:{ex.Message}";
                 }
             });
 
@@ -398,22 +367,26 @@ namespace OnlineCourseAssistant
         /// <param name="ts_list"></param>
         private List<string> GetM3u8Key(string dk, string nowpath, List<string> tsStr)
         {
-            var Bse64Bys = Convert.FromBase64String(dk);
-            byte[] byte_key = new byte[16];
+            if (!string.IsNullOrEmpty(dk))
+            {
+                var Bse64Bys = Convert.FromBase64String(dk);
+                byte[] byte_key = new byte[16];
 
-            int i = 0;
-            foreach (var item in Bse64Bys)
-            {
-                byte_key[i++] = Convert.ToByte(item);
-            }
-            string path1 = nowpath + "\\key.key";
-            using (FileStream fs = new FileStream(path1, FileMode.Create, FileAccess.Write))
-            {
-                foreach (var item in byte_key)
+                int i = 0;
+                foreach (var item in Bse64Bys)
                 {
-                    fs.WriteByte(item);
+                    byte_key[i++] = Convert.ToByte(item);
+                }
+                string path1 = nowpath + "\\key.key";
+                using (FileStream fs = new FileStream(path1, FileMode.Create, FileAccess.Write))
+                {
+                    foreach (var item in byte_key)
+                    {
+                        fs.WriteByte(item);
+                    }
                 }
             }
+
 
             int findex = tsStr.FindIndex(v => v.Contains("#EXT-X-KEY"));
 
@@ -514,22 +487,22 @@ namespace OnlineCourseAssistant
 
         public async Task OnResponse(object sender, SessionEventArgs e)
         {
-            if (e.HttpClient.Request.Method == "GET" && e.HttpClient.Request.Url.Contains("ke.qq.com/cgi-proxy/rec_video/describe_rec_video"))
-            {
-                if (e.HttpClient.Response.StatusCode == 200)
-                {
-                    if (e.HttpClient.Response.ContentType != null)
-                    {
-                        byte[] bodyBytes = await e.GetResponseBody();
-                        e.SetResponseBody(bodyBytes);
-                        string body = await e.GetResponseBodyAsString();
-                        e.SetResponseBodyString(body);
+            string type = ClassFunc.getClassType(e.HttpClient.Request.Url);
 
-                        //await Task.Run(() =>
-                        //{
-                        //    StartDownM3u8(body);
-                        //});
-                    }
+
+            if (e.HttpClient.Response.StatusCode == 200 && type != null)
+            {
+                if (e.HttpClient.Response.ContentType != null)
+                {
+                    byte[] bodyBytes = await e.GetResponseBody();
+                    e.SetResponseBody(bodyBytes);
+                    string body = await e.GetResponseBodyAsString();
+                    e.SetResponseBodyString(body);
+
+                    await Task.Run(() =>
+                    {
+                        StartDownM3u8(body, type, @"D:\书2", "");
+                    });
                 }
             }
         }
